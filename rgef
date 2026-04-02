@@ -31,12 +31,6 @@ export RGEF_OPTIONS
 # for `fzf --preview`
 function RGEF_PREVIEW {
   local pn="$1"
-  # echo "********* $pn *********"
-  # echo "»$RGEF_OPTIONS« »$RGEF_PATTERN«"
-  # search results
-  # cnum=$(tput setaf 34)
-  # cmatch=$(tput setaf 196)
-  # creset=$(tput sgr0)
   rg \
     $RGEF_OPTIONS \
     --pre eread \
@@ -54,7 +48,7 @@ export -f RGEF_PREVIEW
 # for `fzf --bind`
 function RGEF_VIEW {
   # --search-options=
-  #   K: specifying search pattern does not move
+  #   K: specifying search pattern does not search
   #   W: search wraps around
   # +/: specify search pattern
   less \
@@ -99,6 +93,3 @@ rg \
 echo "fzf exited"
 # override fzf exit status
 exit 0
-
-# TODO: use main() function?
-# TODO: header indicates whether preprocessed
