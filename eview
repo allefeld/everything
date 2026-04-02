@@ -1,0 +1,157 @@
+#!/bin/bash
+
+
+# ––– view everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# Make files' content available textually, nicely formatted for viewing.
+# Use as input preprocessor for `less`.
+# Uses `eread`, but provides highlighting and covers additional types.
+# –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+
+# commands to configure `less`, use via `eval $(eview)`
+if [ $# -eq 0 ]
+then
+  # LESSOPEN: Register `eview` as input preprocessor.
+  # `||` means that the replacement text is provided via stdout,
+  # and empty stdout does *not* mean `less` should use the original file.
+  echo "export LESSOPEN='|| eview %s'"
+  # LESSCLOSE: If replacement text is provided via stdout, this setting is
+  # not necessary and may be harmful.
+  echo "unset LESSCLOSE"
+  # LESS: `--RAW-CONTROL-CHARS` – color and hyperlink escape sequences
+  # `--LONG-PROMPT` – verbose prompt including the file name
+  echo "export LESS='--RAW-CONTROL-CHARS --LONG-PROMPT'"
+  # COLUMNS: Export needed to detect terminal width.
+  echo "export COLUMNS"
+  exit 0
+fi
+
+# log
+exec {logfd}> >(logger -t eview)
+function log {
+  echo "$*" >&$logfd
+}
+
+# red output
+function echo_red {
+  echo -e "\e[1;31m$*\e[0m"
+}
+
+# bat call
+bat_cmd=$(type -P bat batcat | head -n1)
+if [[ -z "$bat_cmd" ]]
+then
+  echo "bat / batcat not found" >&2
+  exit 1
+fi
+# TODO: is bat_width still needed?
+bat_width=""
+# if [[ -n "$COLUMNS" ]]
+# then
+#   # -2 to make space for `less --status-column`
+#   bat_width="--terminal-width $(( $COLUMNS - 2 ))"
+# fi
+bat() {
+  LESSOPEN="" "$bat_cmd" \
+    --color=always \
+    --paging=never \
+    --style=plain \
+    --wrap=never \
+    $bat_width \
+    "$@"
+}
+
+
+# main code –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+# pathname
+pn=$(realpath --no-symlinks "$1")
+# `--no-symlinks` → preserve extension of symlink
+log "file: $pn"
+
+
+# non-existing
+if [[ ! -e "$pn" ]]
+then
+  log "type: (symlink to) non-existing"
+  if [[ -L "$pn" ]]
+  then
+    echo_red "Broken symlink."
+  else
+    echo_red "No such entry."
+  fi
+  exit 0
+fi
+
+# directory
+if [[ -d "$pn" ]]
+then
+  log "type: directory"
+  # use `lsd`
+  lsd --long \
+    --reverse --timesort \
+    --classify \
+    --date +"%F %T" \
+    --size bytes \
+    --git \
+    --icon never \
+    --hyperlink always \
+    --color always \
+    "$pn"
+  exit 0
+fi
+
+# special files: named pipe (fifo), socket, block device, character device
+if [[ -p "$pn" || -S "$pn" || -b "$pn" || -c "$pn" ]]
+then
+  log "type: special"
+  # use `stat`
+  stat "$pn" | tail -n +2 | bat --language meminfo
+  # meminfo highlighting gives best results for stat output
+  exit 0
+fi
+
+# empty
+if [[ ! -s "$pn" ]]
+then
+  # nothing to read, "empty"
+  log "type: empty"
+  echo_red "Empty."
+  exit 0
+fi
+
+
+# process with `eread`
+pn=$(eread "$pn" --filename)
+log "showing $pn"
+
+# determine whether (processed) input is binary
+encoding=$(file --dereference --mime-encoding --brief "$pn")
+if [[ "$encoding" == "binary" ]]
+then
+  # binary
+  log "type: binary"
+  echo -n "binary: "
+  file --dereference --brief "$pn"
+  hexyl "$pn"
+  exit 0
+fi
+
+# text
+log "type: text"
+# if requested by rgef, highlight pattern-matching lines
+if [[ -n "$RGEF_PATTERN" ]]
+then
+  # use rg because `pn` has aready been preprocessed
+  bat_highlight=$(
+    rg \
+      $RGEF_OPTIONS \
+      --line-number \
+      -- \
+      "$RGEF_PATTERN" "$pn" | \
+    sed 's/^\([0-9]*\):.*/-H \1/'
+  )
+else
+  bat_highlight=""
+fi
+bat $bat_highlight "$pn"

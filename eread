@@ -1,0 +1,509 @@
+#!/bin/bash
+
+
+# ––– read everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# Make files' content available textually.
+# Use as input preprocessor for `rg` via `rge`.
+# Also used by `eview`.
+# –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+
+# log: everything that happens
+if [[ -n "$EREAD_DEBUG" ]]
+then
+  # persistent logger process for performance
+  exec {logfd}> >(logger -t eread)
+  function log {
+    echo "$*" >&$logfd
+  }
+else
+  exec {logfd}> /dev/null
+  function log {
+    :
+  }
+fi
+
+# err: conditions the user should be notified about
+if [[ -n "${EREAD_ERR}" ]]
+then
+  exec {errfd}>> "${EREAD_ERR}"
+else
+  exec {errfd}>&2
+fi
+function err {
+  echo "eread:$1:" "$2" >&$errfd;
+}
+
+# handle using Pandoc
+function handle_pandoc {
+  log "handle_pandoc" "$@"
+  local pn="$1"
+  local pt="$2"
+  local out="$cn.tmp"   # already in cache directory
+  if [[ "$pt" == "docx" || "$pt" == "odt" ]]
+  then
+    # Pandoc does not extract document properties.
+    log "calling: exiftool"
+    exiftool \
+      -p '---' \
+      -p 'title: "$Title"' \
+      -p 'creator: $Creator' \
+      -p 'created: $CreateDate' \
+      -p 'last.modified.by: $LastModifiedBy' \
+      -p 'modified: $ModifyDate' \
+      -p 'company: $Company' \
+      -p 'revision: $RevisionNumber' \
+      -p 'description: "$Description"' \
+      -p 'keywords: $Keywords' \
+      -p 'language: $Language' \
+      -p 'subject: "$Subject"' \
+      -p '---$/' \
+      "$pn" \
+      > "$out" 2>&$logfd
+    local status=$?
+    log "exiting: $status"
+    if [[ $status -ne 0 ]]
+    then
+      err $LINENO "exiftool failed on '$pn'"
+    fi
+  fi
+  log "calling: pandoc"
+  /usr/bin/pandoc --standalone \
+    --from "$pt" \
+    --to markdown-smart+hard_line_breaks \
+    --wrap none \
+    "$pn" \
+    >> "$out" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  # TODO: add Lua filter to clean up Markdown
+  # - anchors []{#abc}
+  # - pure styling structure, styles from semantic structure
+  # - what if AI as a consumer needs styling information?
+  if [[ $status -eq 0 ]]
+  then
+    # write to & produce from cache
+    mv "$out" "$cn"
+    produce "$cn"
+  else
+    log "not handled by Pandoc"
+    err $LINENO "pandoc failed on '$pn'"
+    produce "$pn"
+    rm -f "$out"    # delete from cache just in case
+  fi
+}
+
+# handle using pdftohtml
+function handle_pdftohtml {
+  log "handle_pdftohtml" "$@"
+  local pn="$1"
+  log "calling: pdftohtml"
+  local tmp=$(mktemp --suffix=.html)
+  pdftohtml -i -hidden -stdout "$pn" > "$tmp" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    # replace &#160; by space,
+    # remove empty anchors,
+    # remove thematic breaks indicating page breaks,
+    # remove generator metadata
+    sed -i \
+      -e 's/&#160;/ /g; ' \
+      -e 's|<a name=[0-9]*></a>||g' \
+      -e 's|<hr/>||g' \
+      -e '/<meta name="generator" content="pdftohtml/d' \
+      "$tmp"
+    # replace double linebreak by paragraph
+    sed -i -z 's|<br/>[[:space:]]*<br/>|<p>|g' "$tmp"
+    # handle using Pandoc
+    handle_pandoc "$tmp" "html"
+  else
+    log "not handled by pdftohtml"
+    produce "$pn"
+    err $LINENO "pdftohtml failed on '$pn'"
+  fi
+  rm -f "$tmp"  # clean up temp
+}
+
+# handle using pptx2md
+function handle_pptx2md {
+  log "handle_pptx2md" "$@"
+  local pn="$1"
+  local tmp=$(mktemp -d)
+  # do not write to cache directly because pptx2md creates `img/` subdirectory
+  log "calling: exiftool"
+  exiftool \
+    -p '---' \
+    -p 'title: "$Title"' \
+    -p 'creator: $Creator' \
+    -p 'created: $CreateDate' \
+    -p 'last.modified.by: $LastModifiedBy' \
+    -p 'modified: $ModifyDate' \
+    -p 'revision: $RevisionNumber' \
+    -p '---$/' \
+    "$pn" \
+    > "$tmp/meta.md" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -ne 0 ]]
+  then
+    err $LINENO "exiftool failed on '$pn'"
+  fi
+  log "calling: pptx2md"
+  pptx2md \
+    --qmd \
+    --disable-color \
+    --output "$tmp/slides.md" \
+    "$pn" \
+    >&$logfd 2>&1
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    # postprocess linebreaks (U+000B Vertical Tab) and bullets (U+F0E0 PUA)
+    sed -i \
+      -e 's/\v/<br>/g' \
+      -e 's/\xEF\x83\xA0/•/g' \
+      "$tmp/slides.md"
+    # combine metadata and slides
+    cat "$tmp/meta.md" "$tmp/slides.md" > "$tmp/out.md"
+    # move to & produce from cache
+    mv "$tmp/out.md" "$cn"
+    produce "$cn"
+  else
+    log "not handled by pptx2md"
+    produce "$pn"
+    err $LINENO "pptx2md failed on '$pn'"
+  fi
+  rm -rf "$tmp" # clean up temp
+}
+
+# handle using Calibre's ebook-convert
+function handle_calibre {
+  log "handle_calibre" "$@"
+  local pn="$1"
+  log "calling: ebook-convert"
+  local tmp=$(mktemp -d)
+  ebook-convert "$pn" "$tmp/out.epub" --no-default-epub-cover >&$logfd 2>&1
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    # remove Calibre as book producer from epub
+    {
+      cd "$tmp"
+      unzip out.epub content.opf
+      sed -i '/<dc:contributor opf:role="bkp">calibre/d' content.opf
+      zip out.epub content.opf
+    } >&$logfd 2>&1
+    # handle using Pandoc
+    handle_pandoc "$tmp/out.epub" "epub"
+  else
+    log "not handled by Calibre"
+    produce "$pn"
+    err $LINENO "ebook-convert failed on '$pn'"
+  fi
+  rm -rf "$tmp" # clean up temp
+}
+
+# handle document using LibreOffice
+function handle_libreoffice_document {
+  log "handle_libreoffice_document" "$@"
+  local pn="$1"
+  local ext="$2"
+  log "calling: libreoffice"
+  local tmp=$(mktemp -d)
+  libreoffice --headless --convert-to docx "$pn" --outdir "$tmp" >&$logfd 2>&1
+  # LibreOffice does not signal errors via exit status
+  # check whether output exists
+  local fn=$(basename "$pn")
+  local out="$tmp/${fn%.$ext}.docx"
+  if [[ -e "$out" ]]
+  then
+    # handle using Pandoc
+    handle_pandoc "$out" "docx"
+  else
+    log "not handled by LibreOffice"
+    produce "$pn"
+    err $LINENO "libreoffice failed on '$pn'"
+  fi
+  rm -rf "$tmp" # clean up temp
+}
+
+# handle presentation using LibreOffice
+function handle_libreoffice_presentation {
+  log "handle_libreoffice_presentation" "$@"
+  local pn="$1"
+  local ext="$2"
+  log "calling: libreoffice"
+  local tmp=$(mktemp -d)
+  libreoffice --headless --convert-to pptx "$pn" --outdir "$tmp" >&$logfd 2>&1
+  # LibreOffice does not signal errors via exit status
+  # check whether output exists
+  local fn=$(basename "$pn")
+  local out="$tmp/${fn%.$ext}.pptx"
+  if [[ -e "$out" ]]
+  then
+    # handle using pptx2md
+    handle_pptx2md "$out"
+  else
+    log "not handled by LibreOffice"
+    produce "$pn"
+    err $LINENO "libreoffice failed on '$pn'"
+  fi
+  rm -rf "$tmp" # clean up temp
+}
+
+# handle audio using ExifTool
+function handle_audio {
+  log "handle_audo" "$@"
+  local pn="$1"
+  local out="$cn.tmp"   # already in cache directory
+  log "calling: exiftool"
+  exiftool \
+    -p '---' \
+    -p 'title: "$Title"' \
+    -p 'artist: $Artist' \
+    -p 'album: "$Album"' \
+    -p 'albumartist: $Albumartist' \
+    -p 'track: $Track' \
+    -p 'track: $TrackNumber' \
+    -p 'year: $Year' \
+    -p 'originalyear: $Originalyear' \
+    -p 'label: $Label' \
+    -p 'composer: $Composer' \
+    -p 'producer: $Producer' \
+    -p 'writer: $Writer' \
+    -p '---$/' \
+    -p '#[BODY]# Comment$/$/$Comment$/' \
+    -p '#[BODY]# Lyrics$/$/$Lyrics$/' \
+    -p '#[BODY]# Synced Lyrics$/$/$Syncedlyrics$/' \
+    "$pn" \
+    > "$out" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    # write to & produce from cache
+    mv "$out" "$cn"
+    produce "$cn"
+  else
+    log "not handled by ExifTool"
+    produce "$pn"
+    rm -f "$out"    # delete from cache just in case
+    err $LINENO "exiftool failed on '$pn'"
+  fi
+}
+
+# handle images using ExifTool
+function handle_image {
+  log "handle_image" "$@"
+  local pn="$1"
+  local out="$cn.tmp"   # already in cache directory
+  log "calling: exiftool"
+  exiftool \
+    -p '---' \
+    -p 'file.name: "$FileName"' \
+    -p 'image.size: $ImageSize' \
+    -p 'title: "$Title"' \
+    -p 'creator: "$Creator"' \
+    -p 'date: $Date' \
+    -p 'subject: "$Subject"' \
+    -p 'catalog.sets: "$Catalog Sets"' \
+    -p 'hierarchical.subject: "$HierarchicalSubject"' \
+    -p 'last.keyword: "$LastKeywordXMP"' \
+    -p 'tags.list: "$TagsList"' \
+    -p '---$/' \
+    -p '#[BODY]# Description $/$/$Description$/' \
+    -p '#[BODY]# Comment$/$/$Comment$/' \
+    -p '#[BODY]# Image Description$/$/$ImageDescription$/' \
+    -p '#[BODY]# Notes$/$/$Notes$/' \
+    -p '#[BODY]# User Comment$/$/$UserComment$/' \
+    "$pn" \
+    > "$out" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    # write to & produce from cache
+    mv "$out" "$cn"
+    produce "$cn"
+  else
+    log "not handled by ExifTool"
+    produce "$pn"
+    rm -f "$out"    # delete from cache just in case
+    err $LINENO "exiftool failed on '$pn'"
+  fi
+}
+
+# handle compressed
+# uncompressed → `handle`
+function handle_compressed {
+  log "handle_compressed" "$@"
+  local pn="$1"
+  local tool="$2"
+  local tmp=$(mktemp -d)
+  ln -s "$pn" "$tmp"
+  log "calling: $tool"
+  case "$tool" in
+    gunzip)
+      gunzip --force "$tmp/"* 2>&$logfd
+      ;;
+    unzstd)
+      unzstd --rm --force "$tmp/"* 2>&$logfd
+      ;;
+    bunzip2)
+      bunzip2 --force "$tmp/"* 2>&$logfd
+      ;;
+  esac
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    handle "$tmp/"*         # OK
+  else
+    log "not handled by $tool"
+    produce "$pn"
+    err $LINENO "$tool failed on '$pn'"
+  fi
+}
+
+# handle
+function handle {
+  log "handle" "$@"
+  local pn="$1"
+
+  # skip everything that is effectively "empty" or a symlink to it
+  if [[ ! -s "$pn" ]]
+  then
+    # nothing to read, "empty"
+    log "(symlink to) special, empty, or non-existing"
+    produce "$pn"
+    return
+  fi
+
+  # extension is dispatch criterion
+  local fn=$(basename "$pn")
+  local ext="${fn##*.}"
+  log "ext: $ext"
+
+  case "${ext,,}" in
+    # formats which Pandoc can read
+    # <https://pandoc.org/MANUAL.html#general-options>,
+    # <https://github.com/jgm/pandoc/blob/main/src/Text/Pandoc/Format.hs#L175>
+    docx|epub|fb2|ipynb|odt|rtf)
+      handle_pandoc "$pn" "$ext"
+      ;;
+    html|htm|xhtml|shtml|aspx)
+      handle_pandoc "$pn" "html"
+      ;;
+    tex)
+      handle_pandoc "$pn" "latex"
+      ;;
+    1|2|3|4|5|6|7|8)
+      handle_pandoc "$pn" "man"
+      ;;
+    # PDF
+    pdf)
+      handle_pdftohtml "$pn"
+      ;;
+    # PowerPoint 2007+
+    pptx)
+      handle_pptx2md "$pn"
+      ;;
+    # formats which Calibre's `ebook-convert` can convert
+    # <https://manual.calibre-ebook.com/generated/en/ebook-convert.html>
+    mobi|prc|azw|azw3|azw4|lit|lrf|mobi| \
+    prc|pdb|pml|rb|snb|tcr|chm|djvu|djv)
+      handle_calibre "$pn"
+      ;;
+    # document formats which LibreOffice can convert to docx
+    # <https://books.libreoffice.org/en/GS74/GS7410-FileFormatsSecurityExporting.html#toc6>
+    doc|fodt|wps|abw|zabw|mw|mcw|602|pages|wpd|wp| \
+    lwp|cwk|sdw|sgl|vor|uot|uof|hwp|sxw|stw|sxg)
+      handle_libreoffice_document "$pn" "$ext"
+      ;;
+    # presentation formats which LibreOffice can convert to pptx
+    # <https://books.libreoffice.org/en/GS74/GS7410-FileFormatsSecurityExporting.html#toc6>
+    ppt|odp|fodp|sdp|sxi|uop|uof|key)
+      handle_libreoffice_presentation "$pn" "$ext"
+      ;;
+    # audio formats which ExifTool can read
+    flac|mp3|m4a|ogg|mka|opus|aiff|wav)
+      handle_audio "$pn"
+      ;;
+    # image formats which ExifTool can read
+    jpg|jpeg|png|gif)
+      handle_image "$pn"
+      ;;
+    # compressed formats
+    gz|z|tgz|taz)
+      handle_compressed "$pn" "gunzip"
+      ;;
+    zstd|xz|lzma|lz4)
+      handle_compressed "$pn" "unzstd"
+      ;;
+    bz2|bz|tbz2|tbz)
+      handle_compressed "$pn" "bunzip2"
+      ;;
+    # unknown format
+    *)
+      log "unknown format"
+      produce "$pn"
+      ;;
+  esac
+}
+# TODO: jamovi .omv
+
+
+# main code –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+# cache dir
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/everything"
+mkdir -p "$cache_dir"
+
+# prune cache
+if [ $# -eq 0 ]
+then
+  echo "pruning cache"
+  find "$cache_dir" -type f -atime +30 -delete
+  rm "$cache_dir"/*.tmp
+  c=$(find "$cache_dir" -type f | wc -l)
+  echo "$c cache entries remain"
+  exit 0
+fi
+
+# pathname
+pn=$(realpath --no-symlinks "$1")
+# `--no-symlinks` → use extension of symlink, not target
+
+# output type
+if [[ "$2" = "--filename" ]]; then
+  # used by eview
+  function produce {
+    log "producing filename $1"
+    echo "$1"
+  }
+else
+  # used by rg
+  function produce {
+    log "producing contents of $1"
+    cat "$1"
+  }
+fi
+
+# cache file name
+hash=$(echo "$pn" | b2sum -l 128 | cut -b 1-32)
+log "hash: $hash"
+# assumes all cached content is Markdown
+cn="$cache_dir/$hash.md"
+
+# check cache
+if [[ -e "$cn" && "$cn" -nt "$pn" ]]; then
+  produce "$cn"
+  exit 0
+fi
+
+# handle
+handle "$pn"

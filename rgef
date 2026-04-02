@@ -1,0 +1,116 @@
+#!/bin/bash
+
+
+# ––– search everything interactively –––––––––––––––––––––––––––––––––––––––––
+# Search files' content with ripgrep using `eview` as preprocessor,
+# and browse the result interactively with `less`.
+# –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+# TODO: set and show EREAD_ERR
+
+# process arguments
+if (( $# < 1 )) || (( $# > 1 )) && [[ "$1" != -* ]]
+then
+    echo "Usage: rgef [RG-OPTIONS] PATTERN" >&2
+    exit 1
+fi
+RGEF_PATTERN="${!#}"
+# collect switches for rg in string
+args=("${@:1:$#-1}")
+if (( ${#args[@]} > 0 ))
+then
+    printf -v RGEF_OPTIONS "%q " "${args[@]}"
+else
+    RGEF_OPTIONS=""
+fi
+# for functions below called in child shells as well as for `eview`
+export RGEF_PATTERN
+export RGEF_OPTIONS
+
+
+# for `fzf --preview`
+function RGEF_PREVIEW {
+  local pn="$1"
+  # echo "********* $pn *********"
+  # echo "»$RGEF_OPTIONS« »$RGEF_PATTERN«"
+  # search results
+  # cnum=$(tput setaf 34)
+  # cmatch=$(tput setaf 196)
+  # creset=$(tput sgr0)
+  rg \
+    $RGEF_OPTIONS \
+    --pre eread \
+    --color=always \
+    --line-number \
+    --field-match-separator=":" \
+    --trim \
+    -- \
+    "$RGEF_PATTERN" \
+    "$pn"
+    #  | \
+    # sed \
+    #   -e 's/\x1b\[0m/\x03/g' \
+    #   -e 's/\x1b\[[0-9;]*m/\x02/g' \
+    #   -e 's/^\x03\x02\([0-9]*\)\x03:/\x03\1\n/' \
+    #   -e 's/\x03\x02//g' | \
+    # fold -s -w$(( $COLUMNS - 4 )) | \
+    # sed \
+    #   -e 's/^\([^\x03]\)/    \1/' \
+    #   -e 's/^\x03\([0-9]*\)/'$cnum'\1'$creset'/' \
+    #   -e 's/\x02/'$cmatch'/g' \
+    #   -e 's/\x03/'$creset'/g'
+}
+export -f RGEF_PREVIEW
+
+
+# for `fzf --bind`
+function RGEF_VIEW {
+  # --search-options=
+  #   K: specifying search pattern does not move
+  #   W: search wraps around
+  # +/: specify search pattern
+  less \
+    --search-options=KW \
+    "+/$RGEF_PATTERN" \
+    --status-column \
+    --ignore-case \
+    --wordwrap \
+    --LINE-NUMBERS \
+    "$@"
+  # ?? --color=d'34.0'
+}
+export -f RGEF_VIEW
+
+
+cdir=$(tput setaf 39)
+cfile=$(tput setaf 214)
+creset=$(tput sgr0)
+set -o pipefail     # stop rge|sed when quitting fzf
+rg \
+  $RGEF_OPTIONS \
+  --pre eread \
+  --files-with-matches \
+  -- \
+  "$RGEF_PATTERN" | \
+    sed -E 's|^(.*\/)?([^/]*)$|'$cdir'\1'$cfile'\2'$creset'|' | \
+    fzf \
+      --exact \
+      --scheme=path \
+      --reverse \
+      --style full \
+      --header-label ' File Type ' \
+      --bind 'focus:transform-header(file --brief --mime {})+transform-preview-label:(echo " $(basename {}) ")' \
+      --preview "RGEF_PREVIEW {}" \
+      --multi \
+      --delimiter=/ \
+      --ansi \
+      --bind 'enter:execute(RGEF_VIEW {+})' \
+      --preview-window=noinfo,wrap-word \
+      --color=label:bold:214
+
+echo "fzf exited"
+# override fzf exit status
+exit 0
+
+# TODO: use main() function?
+# TODO: header indicates whether preprocessed
