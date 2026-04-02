@@ -44,20 +44,12 @@ then
   echo "bat / batcat not found" >&2
   exit 1
 fi
-# TODO: is bat_width still needed?
-bat_width=""
-# if [[ -n "$COLUMNS" ]]
-# then
-#   # -2 to make space for `less --status-column`
-#   bat_width="--terminal-width $(( $COLUMNS - 2 ))"
-# fi
 bat() {
   LESSOPEN="" "$bat_cmd" \
     --color=always \
     --paging=never \
     --style=plain \
     --wrap=never \
-    $bat_width \
     "$@"
 }
 
