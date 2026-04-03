@@ -1,0 +1,151 @@
+#!/bin/bash
+
+
+# ––– search everything interactively –––––––––––––––––––––––––––––––––––––––––
+#   Search files' content with ripgrep using `eview` as preprocessor,
+#   and browse the result interactively with `less`.
+# –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+
+# usage message
+if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+  echo "Usage: esearch [RG-OPTIONS] [PATTERN]"
+  echo
+  echo "If no PATTERN is specified, all files are listed without grepping."
+  echo "The last argument is interpreted as PATTERN, unless it starts"
+  echo "with '--', except if the preceding option is '--'."
+  echo
+  echo "To get a list of RG-OPTIONS, use `rg -h` or `man rg`."
+  echo "Multiple patters and pattern files are not supported."
+  echo "Use `esearch -h` or `esearch --help` for this message."
+  exit 0
+fi
+
+# process arguments
+if [[ $# -eq 0 ]]; then
+  ESEARCH_PATTERN=""
+  ESEARCH_OPTIONS=()
+else
+  last="${@: -1}"
+  second_last="${@: -2:1}"
+  if [[ "$last" == --* && "$second_last" != "--" ]]; then
+    ESEARCH_PATTERN=""
+    ESEARCH_OPTIONS=("$@")
+  else
+    ESEARCH_PATTERN="$last"
+    ESEARCH_OPTIONS=("${@:1:$#-1}")
+  fi
+fi
+# for functions below called in child shells as well as for `eview`
+export ESEARCH_PATTERN
+export ESEARCH_OPTIONS
+
+
+# for `fzf --preview`
+function ESEARCH_PREVIEW {
+  if [[ -n "$ESEARCH_PATTERN" ]]
+  then
+    # show search results in preview
+    rg \
+      $ESEARCH_OPTIONS \
+      --pre eread \
+      --color=always \
+      --line-number \
+      --field-match-separator=":" \
+      --trim \
+      -- \
+      "$ESEARCH_PATTERN" \
+      "$1"
+  else
+    # show file in preview
+    eview "$1"
+  fi
+}
+export -f ESEARCH_PREVIEW
+
+
+# for `fzf --bind`
+function ESEARCH_VIEW {
+  # less
+  #   --search-options=
+  #     K: specifying search pattern does not search
+  #     W: search wraps around
+  #   +/: specify search pattern
+  if [[ -n "$ESEARCH_PATTERN" ]]
+  then
+    less \
+      --search-options=KW \
+      "+/$ESEARCH_PATTERN" \
+      --status-column \
+      --ignore-case \
+      --wordwrap \
+      --LINE-NUMBERS \
+      "$@"
+  else
+    less \
+      --search-options=W \
+      --ignore-case \
+      --wordwrap \
+      "$@"
+  fi
+}
+export -f ESEARCH_VIEW
+
+
+# call rg
+function rg_ {
+  if [[ -n "$ESEARCH_PATTERN" ]]
+  then
+    # list files matching pattern
+    rg \
+      $ESEARCH_OPTIONS \
+      --pre eread \
+      --no-ignore-vcs \
+      --files-with-matches \
+      -- \
+      "$ESEARCH_PATTERN"
+  else
+    # list all files
+    rg \
+      $ESEARCH_OPTIONS \
+      --no-ignore-vcs \
+      --files
+  fi
+}
+
+
+# colorize rg file list
+cdir=$(tput setaf 39)
+cfile=$(tput setaf 214)
+creset=$(tput sgr0)
+function colorize {
+  sed -E 's|^(.*\/)?([^/]*)$|'$cdir'\1'$cfile'\2'$creset'|'
+}
+
+
+# call fzf
+function fzf_ {
+  fzf \
+    --exact \
+    --scheme=path \
+    --reverse \
+    --style full \
+    --header-label ' File Type ' \
+    --bind 'focus:transform-header(file --brief --mime {})+transform-preview-label:(echo " $(basename {}) ")' \
+    --preview "ESEARCH_PREVIEW {}" \
+    --multi \
+    --delimiter=/ \
+    --ansi \
+    --bind 'enter:execute(ESEARCH_VIEW {+})' \
+    --preview-window=noinfo,wrap-word \
+    --color=label:bold:214
+}
+
+
+# stop rg when quitting fzf
+set -o pipefail
+# run search an display
+rg_ | colorize | fzf_
+echo "fzf exited"
+# override fzf exit status
+exit 0
