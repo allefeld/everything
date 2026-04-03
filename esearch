@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ––– search everything interactively –––––––––––––––––––––––––––––––––––––––––
+# ––– search everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #   Search files' content with ripgrep using `eview` as preprocessor,
 #   and browse the result interactively with `less`.
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
@@ -15,6 +15,7 @@ if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
   echo "with '--', except if the preceding option is '--'."
   echo
   echo "To get a list of RG-OPTIONS, use `rg -h` or `man rg`."
+  echo "Options including spaces are not supported."
   echo "Multiple patters and pattern files are not supported."
   echo "Use `esearch -h` or `esearch --help` for this message."
   exit 0
@@ -23,16 +24,16 @@ fi
 # process arguments
 if [[ $# -eq 0 ]]; then
   ESEARCH_PATTERN=""
-  ESEARCH_OPTIONS=()
+  ESEARCH_OPTIONS=""
 else
   last="${@: -1}"
   second_last="${@: -2:1}"
   if [[ "$last" == --* && "$second_last" != "--" ]]; then
     ESEARCH_PATTERN=""
-    ESEARCH_OPTIONS=("$@")
+    ESEARCH_OPTIONS="$*"
   else
     ESEARCH_PATTERN="$last"
-    ESEARCH_OPTIONS=("${@:1:$#-1}")
+    ESEARCH_OPTIONS="${*:1:$#-1}"
   fi
 fi
 # for functions below called in child shells as well as for `eview`
@@ -45,7 +46,7 @@ function ESEARCH_PREVIEW {
   then
     # show search results in preview
     rg \
-      "${ESEARCH_OPTIONS[@]}" \
+      $ESEARCH_OPTIONS \
       --pre eread \
       --color=always \
       --line-number \
@@ -95,7 +96,7 @@ function rg_ {
     # list files matching pattern
     rg \
       --no-ignore-vcs \
-      "${ESEARCH_OPTIONS[@]}" \
+      $ESEARCH_OPTIONS \
       --line-buffered \
       --pre eread \
       --files-with-matches \
@@ -105,7 +106,7 @@ function rg_ {
     # list all files
     rg \
       --no-ignore-vcs \
-      "${ESEARCH_OPTIONS[@]}" \
+      $ESEARCH_OPTIONS \
       --line-buffered \
       --files
   fi

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # ––– view everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # Make files' content available textually, nicely formatted for viewing.
 # Use as input preprocessor for `less`.
@@ -79,16 +78,21 @@ fi
 if [[ -d "$pn" ]]
 then
   log "type: directory"
-  # use `lsd`
-  lsd --long \
-    --reverse --timesort \
-    --classify \
-    --date +"%F %T" \
-    --size bytes \
+  # use `eza`
+  EZA_MIN_LUMINANCE=60 eza \
+    --color=always \
+    --long \
+    --sort=modified \
+    --group-directories-first \
+    --color-scale \
+    --bytes \
+    --group \
+    --time=modified \
+    --time-style="+%Y-%m-%d %H:%M:%S" \
     --git \
-    --icon never \
-    --hyperlink always \
-    --color always \
+    --mounts \
+    --classify \
+    --hyperlink \
     "$pn"
   exit 0
 fi
@@ -112,7 +116,6 @@ then
   exit 0
 fi
 
-
 # process with `eread`
 pn=$(eread "$pn" --filename)
 log "showing $pn"
@@ -131,17 +134,18 @@ fi
 
 # text
 log "type: text"
-# if requested by rgef, highlight pattern-matching lines
-if [[ -n "$RGEF_PATTERN" ]]
+# if requested by `esearch`, highlight pattern-matching lines
+if [[ -n "$ESEARCH_PATTERN" ]]
 then
   # use rg because `pn` has aready been preprocessed
   bat_highlight=$(
     rg \
-      $RGEF_OPTIONS \
+      $ESEARCH_OPTIONS \
       --line-number \
       -- \
-      "$RGEF_PATTERN" "$pn" | \
-    sed 's/^\([0-9]*\):.*/-H \1/'
+      "$ESEARCH_PATTERN" \
+      "$pn" \
+    | sed 's/^\([0-9]*\):.*/-H \1/'
   )
 else
   bat_highlight=""
