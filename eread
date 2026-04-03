@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # ––– read everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #   Make files' content available textually.
 #   Used as input preprocessor for `rg`.
@@ -454,7 +453,6 @@ function handle {
       ;;
   esac
 }
-# TODO: jamovi .omv
 
 
 # main code –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # ––– search everything interactively –––––––––––––––––––––––––––––––––––––––––
 #   Search files' content with ripgrep using `eview` as preprocessor,
 #   and browse the result interactively with `less`.
@@ -40,14 +39,13 @@ fi
 export ESEARCH_PATTERN
 export ESEARCH_OPTIONS
 
-
 # for `fzf --preview`
 function ESEARCH_PREVIEW {
   if [[ -n "$ESEARCH_PATTERN" ]]
   then
     # show search results in preview
     rg \
-      $ESEARCH_OPTIONS \
+      "${ESEARCH_OPTIONS[@]}" \
       --pre eread \
       --color=always \
       --line-number \
@@ -62,7 +60,6 @@ function ESEARCH_PREVIEW {
   fi
 }
 export -f ESEARCH_PREVIEW
-
 
 # for `fzf --bind`
 function ESEARCH_VIEW {
@@ -91,39 +88,40 @@ function ESEARCH_VIEW {
 }
 export -f ESEARCH_VIEW
 
-
 # call rg
 function rg_ {
   if [[ -n "$ESEARCH_PATTERN" ]]
   then
     # list files matching pattern
     rg \
-      $ESEARCH_OPTIONS \
-      --pre eread \
       --no-ignore-vcs \
+      "${ESEARCH_OPTIONS[@]}" \
+      --line-buffered \
+      --pre eread \
       --files-with-matches \
       -- \
       "$ESEARCH_PATTERN"
   else
     # list all files
     rg \
-      $ESEARCH_OPTIONS \
       --no-ignore-vcs \
+      "${ESEARCH_OPTIONS[@]}" \
+      --line-buffered \
       --files
   fi
 }
-
 
 # colorize rg file list
 cdir=$(tput setaf 39)
 cfile=$(tput setaf 214)
 creset=$(tput sgr0)
 function colorize {
-  sed -E 's|^(.*\/)?([^/]*)$|'$cdir'\1'$cfile'\2'$creset'|'
+  sed --unbuffered -E 's|^(.*\/)?([^/]*)$|'$cdir'\1'$cfile'\2'$creset'|'
 }
 
-
 # call fzf
+bind_focus='focus:transform-header(file --brief --mime {})'
+bind_focus+='+transform-preview-label:(echo " $(basename {}) ")'
 function fzf_ {
   fzf \
     --exact \
@@ -131,7 +129,7 @@ function fzf_ {
     --reverse \
     --style full \
     --header-label ' File Type ' \
-    --bind 'focus:transform-header(file --brief --mime {})+transform-preview-label:(echo " $(basename {}) ")' \
+    --bind "$bind_focus" \
     --preview "ESEARCH_PREVIEW {}" \
     --multi \
     --delimiter=/ \
@@ -142,10 +140,17 @@ function fzf_ {
 }
 
 
-# stop rg when quitting fzf
+# main code –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+# stop pipe when quitting fzf
+# also needs unbuffered / reduced buffer in rg_ and colorize
 set -o pipefail
-# run search an display
+
+# run search and display
+export EREAD_ERR=$(mktemp)
 rg_ | colorize | fzf_
-echo "fzf exited"
+# display error messages
+cat $EREAD_ERR
+
 # override fzf exit status
 exit 0
