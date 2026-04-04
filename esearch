@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # ––– search everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––
-#   Search files' content with ripgrep using `eview` as preprocessor,
-#   and browse the result interactively with `less`.
+#   Search files' content with ripgrep using `etext` as preprocessor,
+#   and browse the result interactively with `fzf` with `ecolor` preview
+#   and `eview` full view.
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 
@@ -36,7 +37,7 @@ else
     ESEARCH_OPTIONS="${*:1:$#-1}"
   fi
 fi
-# for functions below called in child shells as well as for `eview`
+# for functions below called in child shells as well as for `ecolor`
 export ESEARCH_PATTERN
 export ESEARCH_OPTIONS
 
@@ -47,7 +48,7 @@ function ESEARCH_PREVIEW {
     # show search results in preview
     rg \
       $ESEARCH_OPTIONS \
-      --pre eread \
+      --pre etext \
       --color=always \
       --line-number \
       --field-match-separator=":" \
@@ -57,34 +58,28 @@ function ESEARCH_PREVIEW {
       "$1"
   else
     # show file in preview
-    eview "$1"
+    ecolor "$1"
   fi
 }
 export -f ESEARCH_PREVIEW
 
 # for `fzf --bind`
 function ESEARCH_VIEW {
-  # less
-  #   --search-options=
-  #     K: specifying search pattern does not search
-  #     W: search wraps around
-  #   +/: specify search pattern
   if [[ -n "$ESEARCH_PATTERN" ]]
   then
-    less \
+    # call eview (less) with options
+    # - specifying search pattern does not search, and search wraps around
+    # - specify search pattern
+    # - show column with search markers
+    # - show line numbers
+    eview \
       --search-options=KW \
       "+/$ESEARCH_PATTERN" \
       --status-column \
-      --ignore-case \
-      --wordwrap \
       --LINE-NUMBERS \
       "$@"
   else
-    less \
-      --search-options=W \
-      --ignore-case \
-      --wordwrap \
-      "$@"
+    eview "$@"
   fi
 }
 export -f ESEARCH_VIEW
@@ -98,7 +93,7 @@ function rg_ {
       --no-ignore-vcs \
       $ESEARCH_OPTIONS \
       --line-buffered \
-      --pre eread \
+      --pre etext \
       --files-with-matches \
       -- \
       "$ESEARCH_PATTERN"
@@ -148,10 +143,10 @@ function fzf_ {
 set -o pipefail
 
 # run search and display
-export EREAD_ERR=$(mktemp)
+export ETEXT_ERR=$(mktemp)
 rg_ | colorize | fzf_
 # display error messages
-cat $EREAD_ERR
+cat $ETEXT_ERR
 
 # override fzf exit status
 exit 0

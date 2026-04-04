@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# ––– read everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# ––– everything as text–––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #   Make files' content available textually.
-#   Used as input preprocessor for `rg`.
-#   Also used by `eview`.
+#   Used as input preprocessor for `rg` in `esearch`.
+#   Also used by `ecolor`.
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 
 # log: everything that happens
-if [[ -n "$EREAD_DEBUG" ]]
+if [[ -n "$ETEXT_DEBUG" ]]
 then
   # persistent logger process for performance
-  exec {logfd}> >(logger -t eread)
+  exec {logfd}> >(logger -t etext)
   function log {
     echo "$*" >&$logfd
   }
@@ -23,14 +23,14 @@ else
 fi
 
 # err: conditions the user should be notified about
-if [[ -n "${EREAD_ERR}" ]]
+if [[ -n "${ETEXT_ERR}" ]]
 then
-  exec {errfd}>> "${EREAD_ERR}"
+  exec {errfd}>> "${ETEXT_ERR}"
 else
   exec {errfd}>&2
 fi
 function err {
-  echo "eread:$1:" "$2" >&$errfd;
+  echo "etext:$1:" "$2" >&$errfd;
 }
 
 # handle using Pandoc
@@ -478,7 +478,7 @@ pn=$(realpath --no-symlinks "$1")
 
 # output type
 if [[ "$2" = "--filename" ]]; then
-  # used by eview
+  # used by ecolor
   function produce {
     log "producing filename $1"
     echo "$1"

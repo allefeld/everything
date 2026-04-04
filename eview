@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# ––– view everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#   Wrapper for `less` with `ecolor` as preprocessor.
+#   Used by `esearch`.
+# –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+
+# `ecolor` as preprocessor
+export LESSOPEN='|| ecolor %s'
+unset LESSCLOSE
+# necessary?
+export COLUMNS
+# for opening files ("editing")
+export LESSEDIT="xdg-open %g"
+# quit on ESC ESC, easier inside `fzf`
+export LESSKEY_CONTENT="\e\e quit"
+
+# call less with options
+# - pass through and account for escape sequences
+# - show long prompt by default
+# - enable colored text in prompts etc.
+# - set (long) prompt to orange bold + standout = reverse
+# - search result, no special colors but standout
+# - line number color, standard "light black"
+# - define prompt
+#   M                       define long prompt
+#   ?m█🭪 %i ◢◤ %m 🭨█:.     # / #, if there is more than one input file, 
+#   ?f█🭪 %f 🭨█:.          file name, if it is known
+#   █🭪 %lt?L ◢◤ %L:. 🭨█"   line number at top, / last line number if known
+# - put found search result in line 4
+# - make search case-insensitive
+# - search wraps around
+# - wrap by words
+less \
+  --RAW-CONTROL-CHARS \
+  --LONG-PROMPT \
+  --use-color \
+  --color=P214ds \
+  --color=S-.-s \
+  --color=N8.0 \
+  --prompt='M?m█🭪 %i ◢◤ %m 🭨█:.?f█🭪 %f 🭨█:.█🭪 %lt?L ◢◤ %L:. 🭨█' \
+  --jump-target=4 \
+  --ignore-case \
+  --search-options=W \
+  --wordwrap \
+  "$@"

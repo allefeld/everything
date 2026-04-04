@@ -1,32 +1,14 @@
 #!/bin/bash
 
-# ––– view everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-# Make files' content available textually, nicely formatted for viewing.
-# Use as input preprocessor for `less`.
-# Uses `eread`, but provides highlighting and covers additional types.
+# ––– everything in color –––––––––––––––––––––––––––––––––––––––––––––––––––––
+#   Make files' content available textually, nicely colored for viewing.
+#   Used as input preprocessor for `less` in `eview`.
+#   Uses `etext`, but provides highlighting and covers additional types.
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 
-# commands to configure `less`, use via `eval $(eview)`
-if [ $# -eq 0 ]
-then
-  # LESSOPEN: Register `eview` as input preprocessor.
-  # `||` means that the replacement text is provided via stdout,
-  # and empty stdout does *not* mean `less` should use the original file.
-  echo "export LESSOPEN='|| eview %s'"
-  # LESSCLOSE: If replacement text is provided via stdout, this setting is
-  # not necessary and may be harmful.
-  echo "unset LESSCLOSE"
-  # LESS: `--RAW-CONTROL-CHARS` – color and hyperlink escape sequences
-  # `--LONG-PROMPT` – verbose prompt including the file name
-  echo "export LESS='--RAW-CONTROL-CHARS --LONG-PROMPT'"
-  # COLUMNS: Export needed to detect terminal width.
-  echo "export COLUMNS"
-  exit 0
-fi
-
 # log
-exec {logfd}> >(logger -t eview)
+exec {logfd}> >(logger -t ecolor)
 function log {
   echo "$*" >&$logfd
 }
@@ -116,8 +98,8 @@ then
   exit 0
 fi
 
-# process with `eread`
-pn=$(eread "$pn" --filename)
+# process with `etext`
+pn=$(etext "$pn" --filename)
 log "showing $pn"
 
 # determine whether (processed) input is binary
