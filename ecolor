@@ -7,6 +7,18 @@
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 
+# usage message
+if [ $# -eq 0 ]
+then
+  echo
+  echo "Usage: ecolor NAME"
+  echo
+  echo "Prints a textual representation of contents in color."
+  echo "Based on \`etext\`, but goes beyond regular files."
+  echo
+  exit 1
+fi
+
 # log
 exec {logfd}> >(logger -t ecolor)
 function log {
@@ -39,9 +51,8 @@ bat() {
 
 # pathname
 pn=$(realpath --no-symlinks "$1")
-# `--no-symlinks` → preserve extension of symlink
+# `--no-symlinks` → use extension of symlink, not target
 log "file: $pn"
-
 
 # non-existing
 if [[ ! -e "$pn" ]]

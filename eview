@@ -6,6 +6,29 @@
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 
+# TODO: usage if no arguments
+
+# usage message
+if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]
+then
+  echo
+  echo "Usage: eview NAMES"
+  echo
+  echo "Shows a textual representation of contents in color, within \`less\`."
+  echo "Based on \`ecolor\`."
+  echo "If no arguments are given, the current directory is listed."
+  echo
+  exit 1
+fi
+
+# no arguments: directory listing
+if [ $# -eq 0 ]
+then
+  ecolor .
+  exit 0
+fi
+
+# environment variables for `less`
 # `ecolor` as preprocessor
 export LESSOPEN='|| ecolor %s'
 unset LESSCLOSE
@@ -16,7 +39,7 @@ export LESSEDIT="xdg-open %g"
 # quit on ESC ESC, easier inside `fzf`
 export LESSKEY_CONTENT="\e\e quit"
 
-# call less with options
+# call `less` with options
 # - pass through and account for escape sequences
 # - show long prompt by default
 # - enable colored text in prompts etc.
@@ -45,3 +68,6 @@ less \
   --search-options=W \
   --wordwrap \
   "$@"
+
+# prune cache, suppressing message
+etext > /dev/null

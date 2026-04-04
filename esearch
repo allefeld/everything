@@ -8,18 +8,23 @@
 
 
 # usage message
-if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]
+then
+  echo
   echo "Usage: esearch [RG-OPTIONS] [PATTERN]"
   echo
-  echo "If no PATTERN is specified, all files are listed without grepping."
+  echo "Searches for pattern in files recursively from current directory."
+  echo
+  echo "If no pattern is specified, all files are listed without grepping."
   echo "The last argument is interpreted as PATTERN, unless it starts"
   echo "with '--', except if the preceding option is '--'."
   echo
-  echo "To get a list of RG-OPTIONS, use `rg -h` or `man rg`."
+  echo "To get a list of possible RG-OPTIONS, use `rg -h` or `man rg`."
   echo "Options including spaces are not supported."
   echo "Multiple patters and pattern files are not supported."
   echo "Use `esearch -h` or `esearch --help` for this message."
-  exit 0
+  echo
+  exit 1
 fi
 
 # process arguments
@@ -147,6 +152,9 @@ export ETEXT_ERR=$(mktemp)
 rg_ | colorize | fzf_
 # display error messages
 cat $ETEXT_ERR
+
+# prune cache, suppressing message
+etext > /dev/null
 
 # override fzf exit status
 exit 0

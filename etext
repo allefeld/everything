@@ -461,14 +461,26 @@ function handle {
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/everything"
 mkdir -p "$cache_dir"
 
-# prune cache
+# usage message and prune cache
 if [ $# -eq 0 ]
 then
-  echo "pruning cache"
+  echo
+  echo "Usage: etext FILENAME"
+  echo "       etext FILENAME --filename"
+  echo "       etext"
+  echo
+  echo "The first syntax prints a textual representation of the file contents,"
+  echo "if possible. Representations are cached in '$cache_dir'."
+  echo "The second syntax writes the textual representation into a file and"
+  echo "prints the filename. This is used by \`ecolor\`."
+  echo "The third syntax prints this message and prunes the cache."
+  echo
+  echo "Pruning cache"
   find "$cache_dir" -type f -atime +30 -delete
-  rm "$cache_dir"/*.tmp
+  rm -f "$cache_dir"/*.tmp
   c=$(find "$cache_dir" -type f | wc -l)
   echo "$c cache entries remain"
+  echo
   exit 0
 fi
 
@@ -477,7 +489,8 @@ pn=$(realpath --no-symlinks "$1")
 # `--no-symlinks` → use extension of symlink, not target
 
 # output type
-if [[ "$2" = "--filename" ]]; then
+if [[ "$2" == "--filename" ]]
+then
   # used by ecolor
   function produce {
     log "producing filename $1"
