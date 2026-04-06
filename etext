@@ -303,13 +303,15 @@ function handle_image {
   log "calling: exiftool"
   exiftool \
     -p '---' \
-    -p 'file.name: "$FileName"' \
     -p 'image.size: $ImageSize' \
+    -p 'animation.iterations: $AnimationIterations' \
+    -p 'frame.count: $FrameCount' \
+    -p 'duration: $Duration' \
     -p 'title: "$Title"' \
     -p 'creator: "$Creator"' \
     -p 'date: $Date' \
     -p 'subject: "$Subject"' \
-    -p 'catalog.sets: "$Catalog Sets"' \
+    -p 'catalog.sets: "$CatalogSets"' \
     -p 'hierarchical.subject: "$HierarchicalSubject"' \
     -p 'last.keyword: "$LastKeywordXMP"' \
     -p 'tags.list: "$TagsList"' \
@@ -333,6 +335,67 @@ function handle_image {
     produce "$pn"
     rm -f "$out"    # delete from cache just in case
     err $LINENO "exiftool failed on '$pn'"
+  fi
+}
+
+# handle SVG
+function handle_svg {
+  log "handle_svg" "$@"
+  local pn="$1"
+  local out="$cn.tmp"   # already in cache directory
+  log "calling: exiftool"
+  exiftool \
+    -p '---' \
+    -p 'image.width: $ImageWidth' \
+    -p 'image.height: $ImageHeight' \
+    -p 'view.box: $ViewBox' \
+    -p 'title: $WorkTitle' \
+    -p 'date: $WorkDate' \
+    -p 'creator: $WorkCreatorAgentTitle' \
+    -p 'publisher: $WorkPublisherAgentTitle' \
+    -p 'source: $WorkSource' \
+    -p 'language: $WorkLanguage' \
+    -p 'subject: $WorkSubject' \
+    -p 'contributor: $WorkContributorAgentTitle' \
+    -p '---$/' \
+    -p '#[BODY]# Description $/$/$WorkDescription$/' \
+    "$pn" \
+    > "$out" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -ne 0 ]]
+  then
+    err $LINENO "exiftool failed on '$pn'"
+  fi
+  echo "# Text" >> "$out"
+  echo >> "$out"
+  log "calling: xsltproc"
+  xsltproc - "$pn" >> "$out" 2>&$logfd <<'EOF'
+<?xml version="1.0"?>
+<xsl:stylesheet version="1.0"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:svg="http://www.w3.org/2000/svg">
+  <xsl:output method="text"/>
+  <xsl:strip-space elements="*"/>
+  <xsl:template match="svg:text//text()">
+    <xsl:value-of select="normalize-space(.)"/>
+    <xsl:text>&#10;</xsl:text>
+  </xsl:template>
+  <xsl:template match="text()"/>
+</xsl:stylesheet>
+EOF
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -eq 0 ]]
+  then
+    # write to & produce from cache
+    mv "$out" "$cn"
+    produce "$cn"
+  else
+    log "not handled by xsltproc"
+    produce "$pn"
+    rm -f "$out"    # delete from cache just in case
+    err $LINENO "xsltproc failed on '$pn'"
   fi
 }
 
@@ -413,8 +476,7 @@ function handle {
       ;;
     # formats which Calibre's `ebook-convert` can convert
     # <https://manual.calibre-ebook.com/generated/en/ebook-convert.html>
-    mobi|prc|azw|azw3|azw4|lit|lrf|mobi| \
-    prc|pdb|pml|rb|snb|tcr|chm|djvu|djv)
+    mobi|chm|djvu|djv|prc|azw|azw3|azw4|lit|lrf|pdb|pml|rb|snb|tcr)
       handle_calibre "$pn"
       ;;
     # document formats which LibreOffice can convert to docx
@@ -435,6 +497,10 @@ function handle {
     # image formats which ExifTool can read
     jpg|jpeg|png|gif)
       handle_image "$pn"
+      ;;
+    # SVG
+    svg)
+      handle_svg "$pn"
       ;;
     # compressed formats
     gz|z|tgz|taz)
