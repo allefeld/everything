@@ -51,7 +51,7 @@ To see log output: `journalctl -t ecolor -t etext`. Set `ETEXT_DEBUG=1` to enabl
 
 ### External tool dependencies
 
-Pandoc, `pdftohtml` (poppler-utils), `pptx2md`, Calibre's `ebook-convert`, LibreOffice, ExifTool (`exiftool`), `xsltproc`, `bat`/`batcat`, `eza`, `hexyl`, `rg`, `fzf`, `locate`, `b2sum`, `file`, `stat`.
+Pandoc, `pdftohtml` (poppler-utils), `pptx2md`, Calibre's `ebook-convert`, LibreOffice, ExifTool (`exiftool`), `xsltproc`, `bat`/`batcat`, `eza`, `hexyl`, `chafa`, `rg`, `fzf`, `locate`, `b2sum`, `file`, `stat`.
 
 `bat` is found at runtime via `type -P bat batcat | head -n1` to handle both names.
 
@@ -61,4 +61,4 @@ Pandoc, `pdftohtml` (poppler-utils), `pptx2md`, Calibre's `ebook-convert`, Libre
 2. Directory → `eza` listing
 3. Special file (pipe/socket/block/char device) → `stat` output highlighted with `bat --language meminfo`
 4. Empty file → red message
-5. Regular file → `etext "$pn" --filename`, then if encoding is binary: `file` + `hexyl`; if text: `bat` (with `rg`-based line highlights when `ESEARCH_PATTERN` is set)
+5. Regular file → `etext "$pn" --filename`, then if encoding is binary: `file` + `hexyl`; if text: `bat` (with `rg`-based line highlights when `ESEARCH_PATTERN` is set), followed by a `chafa` terminal-graphics rendering of the original file (silently no-ops on non-image input)
