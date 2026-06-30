@@ -501,7 +501,7 @@ function handle {
       handle_audio "$pn"
       ;;
     # image formats which ExifTool can read
-    jpg|jpeg|png|gif)
+    jpg|jpeg|png|gif|webp)
       handle_image "$pn"
       ;;
     # SVG
