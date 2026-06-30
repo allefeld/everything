@@ -115,6 +115,12 @@ function handle_pdftohtml {
       "$tmp"
     # replace double linebreak by paragraph
     sed -i -z 's|<br/>[[:space:]]*<br/>|<p>|g' "$tmp"
+    # warn if no text was extracted (e.g. scanned PDF without text layer)
+    if [[ -z "$(sed -n '/<body/,/<\/body>/p' "$tmp" \
+                | sed -e 's/<[^>]*>//g' | tr -d '[:space:]')" ]]
+    then
+      err $LINENO "pdftohtml extracted no text from '$pn', consider running OCR"
+    fi
     # handle using Pandoc
     handle_pandoc "$tmp" "html"
   else
