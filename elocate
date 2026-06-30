@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# ––– locate everything –––––––––––––––––––––––––––––––––––––––––––––––––––––––
+#   Locate files or folders by their name and browse the result interactively
+#   with `fzf`, with `ecolor` preview and `eview` full view.
+# –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+locate --ignore-case --existing --basename "$@" | \
+  sed -n "s|^$PWD/||p" | \
+  grep -v '\(^\|/\)\.' | \
+  fzf --preview 'eview {}'
