@@ -36,8 +36,14 @@ unset LESSCLOSE
 export COLUMNS
 # for opening files ("editing")
 export LESSEDIT="xdg-open %g"
-# quit on ESC ESC, easier inside `fzf`
-export LESSKEY_CONTENT="\e\e quit"
+# quit on ESC ESC; Ctrl+Left and Right to switch documents
+export LESSKEY_CONTENT="#command
+\e[1\;5D prev-file
+\e[1\;5C next-file
+"
+# setting LESSKEY_CONTENT induces strange screen clearing behavior
+# setting also LESS_LINES ameliorates that, at the price of slower scrolling
+export LESS_LINES=${LINES:-$(tput lines 2>/dev/null)}
 
 # call `less` with options
 # - pass through and account for escape sequences
