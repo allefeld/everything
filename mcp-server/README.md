@@ -6,7 +6,15 @@ of the conversion tooling.
 
 ## Tools
 
-### `search(pattern, path, [ignore_case, glob, max_count])`
+### `list_dir(path)`
+
+Lists the contents of a directory (one level, non-recursive). Returns each
+entry's name, type (file or dir), and size in bytes for files. Directories
+are listed first.
+
+- **path** — Directory to list (absolute, or `~/…`-relative).
+
+### `search(pattern, path, [ignore_case, glob, max_count, context, before, after])`
 
 Runs `rg --pre etext` to search inside PDFs, Office documents, ebooks, archives,
 HTML, images, and other file types that `etext` can convert.
@@ -16,17 +24,29 @@ HTML, images, and other file types that `etext` can convert.
 - **ignore_case** — Case-insensitive matching (`-i`). Default `false`.
 - **glob** — Filename glob filter, e.g. `"*.pdf"`. Optional.
 - **max_count** — Maximum matches returned per file. Optional.
+- **context** — Lines of context to show before and after each match (`-C`).
+  Overrides `before`/`after` if set. Optional.
+- **before** — Lines of context before each match (`-B`). Optional.
+- **after** — Lines of context after each match (`-A`). Optional.
 
-Returns one `file:line: text` line per match. Line numbers refer to positions
-in the converted Markdown output, not the original file.
+Returns matches as `file:line: text`, with context lines as `file-line- text`
+and `--` separating non-adjacent match regions within the same file. Line
+numbers refer to positions in the converted Markdown output, not the original
+file.
 
-### `fetch(file)`
+### `fetch(file, [start, end])`
 
 Runs `etext <file>` (stdout mode) and returns the full converted Markdown,
 using the on-disk cache at `~/.cache/everything/` if the file has been
-converted before.
+converted before. Use `start`/`end` to retrieve only a section when a full
+fetch would exceed the tool result size limit.
 
 - **file** — Path to the file to convert. Absolute or `~/…`-relative.
+- **start** — First line to return, 1-based inclusive. Optional.
+- **end** — Last line to return, 1-based inclusive. Optional.
+
+When a line range is given, the result begins with a `[Lines X–Y of N]`
+header. Line numbers from `search` results can be used directly.
 
 ## Requirements
 
@@ -60,7 +80,7 @@ pipx upgrade everything-mcp
 
 Once installed, register the server by adding it to your MCP configuration.
 
-**Claude Desktop** — `~/.config/claude/claude_desktop_config.json` (Linux) or
+**Claude Desktop** — `~/.config/Claude/claude_desktop_config.json` (Linux) or
 `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
