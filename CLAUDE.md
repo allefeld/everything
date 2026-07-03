@@ -55,6 +55,24 @@ Pandoc, `pdftohtml` (poppler-utils), `pptx2md`, Calibre's `ebook-convert`, Libre
 
 `bat` is found at runtime via `type -P bat batcat | head -n1` to handle both names.
 
+### `mcp-server/` subdirectory
+
+A Python MCP server (`mcp-server/everything_mcp.py`) that exposes `etext` and `rg --pre etext` to Claude Desktop / Cowork. Three tools:
+
+- `list_dir(path)` — one-level directory listing via `os.scandir`
+- `search(pattern, path, ...)` — `rg --pre etext --json` with optional `ignore_case`, `glob`, `max_count`, `context`/`before`/`after` (-C/-B/-A)
+- `fetch(file, [start, end])` — `etext <file>` stdout mode, optionally sliced to a line range
+
+The server is installed as an executable (`everything-mcp`) via `uv` or `pipx`:
+
+```bash
+uv tool install 'git+https://github.com/allefeld/everything.git#subdirectory=mcp-server'
+# or from local checkout:
+cd mcp-server && uv tool install --force --reinstall .
+```
+
+`etext` is resolved via `shutil.which("etext")` at runtime — it must be on `$PATH`, not at a hardcoded path. After editing `everything_mcp.py`, reinstall with the local-checkout command above before testing. The `pyproject.toml` uses `setuptools.build_meta` with `py-modules = ["everything_mcp"]`.
+
 ### `ecolor` file-type routing
 
 1. Non-existing / broken symlink → red message
