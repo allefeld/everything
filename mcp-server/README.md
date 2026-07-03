@@ -108,8 +108,4 @@ Once installed, register the server by adding it to your MCP configuration.
 ```
 
 If `~/.local/bin/` is not on the PATH seen by Claude Desktop (common on macOS
-where the app may not inherit your shell's PATH), use the full path:
-
-```json
-"command": "/home/ca/.local/bin/everything-mcp"
-```
+where the app may not inherit your shell's PATH), use the full path.
