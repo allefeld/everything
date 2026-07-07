@@ -105,3 +105,7 @@ By default, `ecolor` always logs to the system log (via `logger`), and `etext` i
 ```bash
 journalctl -t ecolor -t etext
 ```
+
+***
+
+This software is copyrighted © 2026 by Carsten Allefeld and released under the terms of the GNU General Public License, version 3 or later.

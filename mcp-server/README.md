@@ -109,3 +109,7 @@ Once installed, register the server by adding it to your MCP configuration.
 
 If `~/.local/bin/` is not on the PATH seen by Claude Desktop (common on macOS
 where the app may not inherit your shell's PATH), use the full path.
+
+***
+
+This software is copyrighted © 2026 by Carsten Allefeld and released under the terms of the GNU General Public License, version 3 or later.
