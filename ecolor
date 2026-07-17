@@ -72,21 +72,7 @@ if [[ -d "$pn" ]]
 then
   log "type: directory"
   # use `eza`
-  EZA_MIN_LUMINANCE=60 eza \
-    --color=always \
-    --long \
-    --sort=modified \
-    --group-directories-first \
-    --color-scale \
-    --bytes \
-    --group \
-    --time=modified \
-    --time-style="+%Y-%m-%d %H:%M:%S" \
-    --git \
-    --mounts \
-    --classify \
-    --hyperlink \
-    "$pn"
+  eza --color=always $EZA_OPTIONS "$pn"
   exit 0
 fi
 

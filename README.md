@@ -98,6 +98,15 @@ esearch <pattern>                   # Interactive full-content search across all
 elocate <name>                      # Locate files by name with interactive selection
 ```
 
+## Configuration
+
+`ecolor` uses the `EZA_OPTIONS` environment variable when listing directories, so that directory listings in the viewer match the user's preferred `eza` options. Set it in your shell profile alongside your `eza` alias, for example:
+
+```bash
+export EZA_OPTIONS="--long --sort=modified --group-directories-first --color-scale --bytes --group --time=modified --time-style=long-iso --git --mounts --classify --hyperlink"
+alias l='eza $EZA_OPTIONS'
+```
+
 ## Logging
 
 By default, `ecolor` always logs to the system log (via `logger`), and `etext` is silent unless `ETEXT_DEBUG=1` is set. View log messages with:

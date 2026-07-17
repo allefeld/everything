@@ -48,6 +48,7 @@ To see log output: `journalctl -t ecolor -t etext`. Set `ETEXT_DEBUG=1` to enabl
 - `ETEXT_ERR` — path to a temp file where `etext` accumulates non-fatal errors; `esearch` displays them after `fzf` exits
 - `ETEXT_DEBUG` — enables `logger`-based debug logging in `etext`
 - `LESSOPEN` / `LESSCLOSE` / `COLUMNS` — set by `eview` to wire `ecolor` as the preprocessor
+- `EZA_OPTIONS` — set by the user in their shell profile; read by `ecolor` when listing directories with `eza`
 
 ### External tool dependencies
 
