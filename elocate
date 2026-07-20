@@ -5,7 +5,57 @@
 #   with `fzf`, with `ecolor` preview and `eview` full view.
 # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-locate --ignore-case --existing --basename "$@" | \
-  sed -n "s|^$PWD/||p" | \
-  grep -v '\(^\|/\)\.' | \
-  fzf --preview 'eview {}'
+
+# call locate
+function locate_ {
+  locate --ignore-case --existing --basename "$@" | \
+    awk -v prefix="$PWD/" 'index($0, prefix) == 1 { print substr($0, length(prefix) + 1) }' | \
+    grep -v '\(^\|/\)\.'
+}
+
+# colorize file list
+cdir=$(tput setaf 39)
+cfile=$(tput setaf 214)
+creset=$(tput sgr0)
+function colorize {
+  sed --unbuffered -E 's|^(.*\/)?([^/]*)$|'$cdir'\1'$cfile'\2'$creset'|'
+}
+
+# call fzf
+bind_focus='focus:transform-header(file --brief --mime {})'
+bind_focus+='+transform-preview-label:(echo " $(basename {}) ")'
+function fzf_ {
+  fzf \
+    --exact \
+    --scheme=path \
+    --reverse \
+    --style full \
+    --color=label:bold:214 \
+    --header-label ' File Type ' \
+    --bind "$bind_focus" \
+    --bind 'enter:execute(eview {+})' \
+    --preview "ecolor {}" \
+    --preview-window=noinfo,wrap-word \
+    --multi \
+    --delimiter=/ \
+    --ansi
+}
+
+
+# main code –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+fifo=$(mktemp -u)
+mkfifo "$fifo"
+
+# run locate_ | colorize in the background, in their own process group, so
+# that on quitting fzf we can kill them and any children.
+set -m
+locate_ "$@" | colorize > "$fifo" &
+producer_pid=$!
+producer_pgid=$(ps -o pgid= -p "$producer_pid" | tr -d ' ')
+disown "$producer_pid"
+set +m
+trap 'kill -- -"$producer_pgid" 2>/dev/null; rm -f "$fifo"' EXIT
+
+# fzf_ reads the pipe into which locate_ | colorize writes.
+fzf_ < "$fifo"

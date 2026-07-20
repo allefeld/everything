@@ -114,7 +114,7 @@ function rg_ {
   fi
 }
 
-# colorize rg file list
+# colorize file list
 cdir=$(tput setaf 39)
 cfile=$(tput setaf 214)
 creset=$(tput sgr0)
@@ -131,27 +131,38 @@ function fzf_ {
     --scheme=path \
     --reverse \
     --style full \
+    --color=label:bold:214 \
     --header-label ' File Type ' \
     --bind "$bind_focus" \
+    --bind 'enter:execute(ESEARCH_VIEW {+})' \
     --preview "ESEARCH_PREVIEW {}" \
+    --preview-window=noinfo,wrap-word \
     --multi \
     --delimiter=/ \
-    --ansi \
-    --bind 'enter:execute(ESEARCH_VIEW {+})' \
-    --preview-window=noinfo,wrap-word \
-    --color=label:bold:214
+    --ansi
 }
 
 
 # main code –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-# stop pipe when quitting fzf
-# also needs unbuffered / reduced buffer in rg_ and colorize
-set -o pipefail
-
 # run search and display
 export ETEXT_ERR=$(mktemp)
-rg_ | colorize | fzf_
+fifo=$(mktemp -u)
+mkfifo "$fifo"
+
+# run rg_ | colorize in the background, in their own process group, so that
+# on quitting fzf we can kill them and any children.
+set -m
+rg_ | colorize > "$fifo" &
+producer_pid=$!
+producer_pgid=$(ps -o pgid= -p "$producer_pid" | tr -d ' ')
+disown "$producer_pid"
+set +m
+trap 'kill -- -"$producer_pgid" 2>/dev/null; rm -f "$fifo"' EXIT
+
+# fzf_ reads the pipe into which rg_ | colorize writes.
+fzf_ < "$fifo"
+
 # display error messages
 cat $ETEXT_ERR
 
