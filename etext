@@ -405,6 +405,91 @@ EOF
   fi
 }
 
+# handle archive (zip, tar, 7z, rar)
+function handle_archive {
+  log "handle_archive" "$@"
+  local pn="$1"
+  local fmt="$2"
+  local out="$cn.tmp"
+  local fn=$(basename "$pn")
+  local status
+  local errmsg="archive listing failed on '$pn'"
+
+  {
+    echo "---"
+    printf 'archive.name: "%s"\n' "$fn"
+    echo "archive.format: $fmt"
+    echo "---"
+    echo
+    echo "# Contents"
+    echo
+    echo '```'
+  } > "$out"
+
+  case "$fmt" in
+    zip)
+      log "calling: unzip"
+      # unzip -v: fields are Length Method Size Cmpr Date Time CRC-32 Name
+      unzip -v "$pn" 2>&$logfd \
+        | awk '$1~/^[0-9]+$/ && NF>=8 {
+            crc=$7; name=$8
+            for(i=9;i<=NF;i++) name=name" "$i
+            print crc "  " name
+          }' \
+        | sort -k2 >> "$out"
+      status=${PIPESTATUS[0]}
+      ;;
+    tar)
+      log "calling: tar"
+      tar -tf "$pn" 2>&$logfd | sort >> "$out"
+      status=${PIPESTATUS[0]}
+      ;;
+    7z)
+      log "calling: 7z"
+      # 7z l -slt: structured listing; emit path+CRC pairs on new Path= or EOF
+      7z l -slt "$pn" 2>&$logfd \
+        | awk '
+            /^----------/{in_files=1; next}
+            !in_files{next}
+            /^Path = /{if(path && crc) print crc "  " path; path=substr($0,8); crc=""}
+            /^CRC = /{crc=substr($0,7)}
+            END{if(path && crc) print crc "  " path}
+          ' \
+        | sort -k2 >> "$out"
+      status=${PIPESTATUS[0]}
+      ;;
+    rar)
+      log "calling: unrar"
+      # capture stderr to detect solid archive errors while still forwarding to log
+      local rar_err
+      rar_err=$(mktemp)
+      # unrar --list: filename lines start with one space, between the --- separators
+      unrar --list "$pn" 2>"$rar_err" \
+        | awk '/^---/{in_files=!in_files; next} in_files && /^ [^ ]/{print substr($0,2)}' \
+        | sort >> "$out"
+      status=${PIPESTATUS[0]}
+      cat "$rar_err" >&$logfd
+      if [[ $status -ne 0 ]] && grep -qi "solid" "$rar_err"; then
+        errmsg="solid RAR archive not supported by unrar-free: '$pn'"
+      fi
+      rm -f "$rar_err"
+      ;;
+  esac
+  echo '```' >> "$out"
+  log "exiting: $status"
+
+  if [[ $status -eq 0 ]]
+  then
+    mv "$out" "$cn"
+    produce "$cn"
+  else
+    log "not handled"
+    produce "$pn"
+    rm -f "$out"
+    err $LINENO "$errmsg"
+  fi
+}
+
 # handle compressed
 # uncompressed → `handle`
 function handle_compressed {
@@ -508,14 +593,27 @@ function handle {
     svg)
       handle_svg "$pn"
       ;;
-    # compressed formats
-    gz|z|tgz|taz)
+    # archive formats
+    zip|jar|war|ear|cbz)
+      handle_archive "$pn" zip
+      ;;
+    tar|tgz|taz|tbz2|tbz|txz|tzst|cbt)
+      handle_archive "$pn" tar
+      ;;
+    7z|cb7)
+      handle_archive "$pn" 7z
+      ;;
+    rar|cbr)
+      handle_archive "$pn" rar
+      ;;
+    # compressed single-file formats
+    gz|z)
       handle_compressed "$pn" "gunzip"
       ;;
     zstd|xz|lzma|lz4)
       handle_compressed "$pn" "unzstd"
       ;;
-    bz2|bz|tbz2|tbz)
+    bz2|bz)
       handle_compressed "$pn" "bunzip2"
       ;;
     # unknown format

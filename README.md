@@ -51,7 +51,9 @@ The following tools are required:
 
 **Binary file display:** `hexyl`, `chafa`
 
-**Compression tools:** `gunzip`, `bunzip2`, `unzip`, `unzstd` (from `zstd`), support for `.xz` and `.lz4`
+**Compression tools:** `gunzip`, `bunzip2`, `unzstd` (from `zstd`), support for `.xz` and `.lz4`
+
+**Archive tools:** `unzip` (Info-ZIP), `7z` (from `7zip`), `unrar` (or `unrar-free`)
 
 **Hashing:** `b2sum` (from `coreutils`)
 
@@ -60,7 +62,7 @@ The following tools are required:
 Install the packages:
 
 ```bash
-apt-get install bash bat bzip2 calibre coreutils exiftool file fzf gzip hexyl less libreoffice-common libxslt1.1 mlocate pandoc poppler-utils ripgrep sed unzip xsltproc zstd chafa exiftool
+apt-get install bash bat bzip2 calibre coreutils exiftool file fzf gzip hexyl less libreoffice-common libxslt1.1 mlocate pandoc poppler-utils ripgrep sed unzip xsltproc zstd chafa exiftool 7zip unrar-free
 ```
 
 Additionally, install `pptx2md` from source or pip (not in official Debian packages yet):

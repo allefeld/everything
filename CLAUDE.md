@@ -27,7 +27,7 @@ There is no build step. Scripts run directly as bash:
 ./elocate filename                     # interactive locate
 ```
 
-Test files live in `test/` organized by type: `audio/`, `compressed/`, `documents/`, `ebooks/`, `html/`, `images/`, `ipynb/`, `misc/`, `pdf/`, `presentations/`, `svg/`, `tabular/`.
+Test files live in `test/` organized by type: `archive/`, `audio/`, `compressed/`, `documents/`, `ebooks/`, `html/`, `images/`, `ipynb/`, `misc/`, `pdf/`, `presentations/`, `svg/`, `tabular/`.
 
 To see log output: `journalctl -t ecolor -t etext`. Set `ETEXT_DEBUG=1` to enable `etext` logging.
 
@@ -52,7 +52,7 @@ To see log output: `journalctl -t ecolor -t etext`. Set `ETEXT_DEBUG=1` to enabl
 
 ### External tool dependencies
 
-Pandoc, `pdftohtml` (poppler-utils), `pptx2md`, Calibre's `ebook-convert`, LibreOffice, ExifTool (`exiftool`), `xsltproc`, `bat`/`batcat`, `eza`, `hexyl`, `chafa`, `rg`, `fzf`, `locate`, `b2sum`, `file`, `stat`.
+Pandoc, `pdftohtml` (poppler-utils), `pptx2md`, Calibre's `ebook-convert`, LibreOffice, ExifTool (`exiftool`), `xsltproc`, `bat`/`batcat`, `eza`, `hexyl`, `chafa`, `rg`, `fzf`, `locate`, `b2sum`, `file`, `stat`, `unzip`, `7z`, `unrar`.
 
 `bat` is found at runtime via `type -P bat batcat | head -n1` to handle both names.
 
