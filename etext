@@ -161,7 +161,7 @@ function handle_pptx2md {
     --disable-color \
     --output "$tmp/slides.md" \
     "$pn" \
-    >&$logfd 2>&1
+    >&$logfd 2>&$logfd
   local status=$?
   log "exiting: $status"
   if [[ $status -eq 0 ]]
@@ -190,7 +190,7 @@ function handle_calibre {
   local pn="$1"
   log "calling: ebook-convert"
   local tmp=$(mktemp -d)
-  ebook-convert "$pn" "$tmp/out.epub" --no-default-epub-cover >&$logfd 2>&1
+  ebook-convert "$pn" "$tmp/out.epub" --no-default-epub-cover >&$logfd 2>&$logfd
   local status=$?
   log "exiting: $status"
   if [[ $status -eq 0 ]]
@@ -201,7 +201,7 @@ function handle_calibre {
       unzip out.epub content.opf
       sed -i '/<dc:contributor opf:role="bkp">calibre/d' content.opf
       zip out.epub content.opf
-    } >&$logfd 2>&1
+    } >&$logfd 2>&$logfd
     # handle using Pandoc
     handle_pandoc "$tmp/out.epub" "epub"
   else
@@ -219,7 +219,7 @@ function handle_libreoffice_document {
   local ext="$2"
   log "calling: libreoffice"
   local tmp=$(mktemp -d)
-  libreoffice --headless --convert-to docx "$pn" --outdir "$tmp" >&$logfd 2>&1
+  libreoffice --headless --convert-to docx "$pn" --outdir "$tmp" >&$logfd 2>&$logfd
   # LibreOffice does not signal errors via exit status
   # check whether output exists
   local fn=$(basename "$pn")
@@ -236,6 +236,107 @@ function handle_libreoffice_document {
   rm -rf "$tmp" # clean up temp
 }
 
+# handle spreadsheet using LibreOffice (→ per-sheet CSV files)
+function handle_spreadsheet {
+  log "handle_spreadsheet" "$@"
+  local pn="$1"
+  local out="$cn.tmp"
+  local tmp=$(mktemp -d)
+  local fn=$(basename "$pn")
+  local ext="${fn##*.}"
+  local base="${fn%.*}"
+
+  log "calling: exiftool"
+  exiftool \
+    -p '---' \
+    -p 'title: "$Title"' \
+    -p 'creator: $Creator' \
+    -p 'created: $CreateDate' \
+    -p 'last.modified.by: $LastModifiedBy' \
+    -p 'modified: $ModifyDate' \
+    -p 'company: $Company' \
+    -p 'description: "$Description"' \
+    -p 'keywords: $Keywords' \
+    -p 'subject: "$Subject"' \
+    -p '---$/' \
+    "$pn" \
+    > "$out" 2>&$logfd
+  local status=$?
+  log "exiting: $status"
+  if [[ $status -ne 0 ]]
+  then
+    err $LINENO "exiftool failed on '$pn'"
+  fi
+
+  # read sheet names in workbook order from XML (zip-based formats only)
+  local -a sheet_names=()
+  case "${ext,,}" in
+    xlsx|xlsm|xlsb)
+      mapfile -t sheet_names < <(
+        unzip -p "$pn" xl/workbook.xml 2>&$logfd \
+        | grep -oP '<sheet\b[^>]*name="\K[^"]+')
+      ;;
+    ods)
+      mapfile -t sheet_names < <(
+        unzip -p "$pn" content.xml 2>&$logfd \
+        | grep -oP '(?<=table:name=")[^"]+')
+      ;;
+    fods)
+      mapfile -t sheet_names < <(
+        grep -oP '(?<=table:name=")[^"]+' "$pn" 2>&$logfd)
+      ;;
+  esac
+
+  log "calling: libreoffice"
+  libreoffice --headless \
+    --convert-to 'csv:Text - txt - csv (StarCalc):44,34,UTF8,1,,0,false,true,false,false,false,-1' \
+    "$pn" --outdir "$tmp" >&$logfd 2>&$logfd
+
+  # for xls (binary, no XML source), sort by ctime — approximates workbook
+  # order when sheets contain enough data to produce distinct write timestamps
+  if [[ ${#sheet_names[@]} -eq 0 ]]; then
+    local f
+    while IFS= read -r f; do
+      local name
+      name=$(basename "$f" .csv)
+      sheet_names+=("${name#"$base"-}")
+    done < <(find "$tmp" -name "$base-*.csv" -printf '%C@ %p\n' | sort -n | cut -d' ' -f2-)
+  fi
+
+  if [[ ${#sheet_names[@]} -eq 0 ]]; then
+    log "not handled by libreoffice"
+    produce "$pn"
+    rm -f "$out"
+    err $LINENO "libreoffice failed on '$pn'"
+    rm -rf "$tmp"
+    return
+  fi
+
+  # verify every expected sheet was exported
+  local sheet ok=1
+  for sheet in "${sheet_names[@]}"; do
+    if [[ ! -e "$tmp/$base-$sheet.csv" ]]; then
+      err $LINENO "sheet not exported: '$sheet' from '$pn'"
+      ok=0
+    fi
+  done
+  if [[ $ok -eq 0 ]]; then
+    produce "$pn"
+    rm -f "$out"
+    rm -rf "$tmp"
+    return
+  fi
+
+  for sheet in "${sheet_names[@]}"; do
+    printf '\n# %s\n\n```csv\n' "$sheet" >> "$out"
+    cat "$tmp/$base-$sheet.csv" >> "$out"
+    printf '```\n' >> "$out"
+  done
+  mv "$out" "$cn"
+  produce "$cn"
+  rm -rf "$tmp"
+}
+
 # handle presentation using LibreOffice
 function handle_libreoffice_presentation {
   log "handle_libreoffice_presentation" "$@"
@@ -243,7 +344,7 @@ function handle_libreoffice_presentation {
   local ext="$2"
   log "calling: libreoffice"
   local tmp=$(mktemp -d)
-  libreoffice --headless --convert-to pptx "$pn" --outdir "$tmp" >&$logfd 2>&1
+  libreoffice --headless --convert-to pptx "$pn" --outdir "$tmp" >&$logfd 2>&$logfd
   # LibreOffice does not signal errors via exit status
   # check whether output exists
   local fn=$(basename "$pn")
@@ -575,6 +676,10 @@ function handle {
     doc|fodt|wps|abw|zabw|mw|mcw|602|pages|wpd|wp| \
     lwp|cwk|sdw|sgl|vor|uot|uof|hwp|sxw|stw|sxg)
       handle_libreoffice_document "$pn" "$ext"
+      ;;
+    # spreadsheet formats which LibreOffice can convert to csv
+    xlsx|xlsm|xlsb|xls|ods|fods)
+      handle_spreadsheet "$pn"
       ;;
     # presentation formats which LibreOffice can convert to pptx
     # <https://books.libreoffice.org/en/GS74/GS7410-FileFormatsSecurityExporting.html#toc6>

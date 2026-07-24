@@ -4,7 +4,7 @@ Everything provides a suite of tools to make the content of files of as many typ
 
 ## Tools
 
-- **`etext`** — converts binary and rich-text files to Markdown for text processing. Used as a preprocessor for `ripgrep` (via `rg --pre etext`) to enable full-text search across PDFs, Office documents, ebooks, archives, images, and more. Dispatches to external converters (Pandoc, LibreOffice, Calibre) based on file extension and caches results for performance.
+- **`etext`** — converts binary and rich-text files to Markdown for text processing. Used as a preprocessor for `ripgrep` (via `rg --pre etext`) to enable full-text search across PDFs, Office documents, spreadsheets, ebooks, archives, images, and more. Dispatches to external converters (Pandoc, LibreOffice, Calibre) based on file extension and caches results for performance.
 
 - **`ecolor`** — renders files as colored text for viewing in `less`. Wraps `etext` for binary files and adds syntax highlighting via `bat`. Shows directory listings, hexdumps for binary files, and terminal-graphics renderings of images. Used as the `LESSOPEN` preprocessor by `eview`.
 
