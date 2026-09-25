@@ -7,7 +7,7 @@ name = "everything-mcp"
 version = "0.1.0"
 description = "MCP server wrapping the 'everything' file-search toolkit"
 requires-python = ">=3.11"
-dependencies = ["mcp>=1.0"]
+dependencies = ["mcp>=2.2,<3"]
 
 [project.scripts]
 everything-mcp = "everything_mcp:main"

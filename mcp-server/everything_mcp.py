@@ -7,9 +7,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("everything")
+mcp = MCPServer("everything")
 
 
 def _etext() -> str:

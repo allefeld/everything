@@ -64,15 +64,15 @@ A Python MCP server (`mcp-server/everything_mcp.py`) that exposes `etext` and `r
 - `search(pattern, path, ...)` — `rg --pre etext --json` with optional `ignore_case`, `glob`, `max_count`, `context`/`before`/`after` (-C/-B/-A)
 - `fetch(file, [start, end])` — `etext <file>` stdout mode, optionally sliced to a line range
 
-The server is installed as an executable (`everything-mcp`) via `uv` or `pipx`:
+Dependencies are managed with `uv` (`pyproject.toml` + `uv.lock`; `uv lock --upgrade` to refresh, `uv run` to test in the project venv). The server is installed globally as an executable (`everything-mcp`) via `pipx`:
 
 ```bash
-uv tool install 'git+https://github.com/allefeld/everything.git#subdirectory=mcp-server'
+pipx install 'git+https://github.com/allefeld/everything.git#subdirectory=mcp-server'
 # or from local checkout:
-cd mcp-server && uv tool install --force --reinstall .
+cd mcp-server && pipx install --force .
 ```
 
-`etext` is resolved via `shutil.which("etext")` at runtime — it must be on `$PATH`, not at a hardcoded path. After editing `everything_mcp.py`, reinstall with the local-checkout command above before testing. The `pyproject.toml` uses `setuptools.build_meta` with `py-modules = ["everything_mcp"]`.
+`etext` is resolved via `shutil.which("etext")` at runtime — it must be on `$PATH`, not at a hardcoded path. After editing `everything_mcp.py`, reinstall with the local-checkout command above before testing. The `pyproject.toml` uses `setuptools.build_meta` with `py-modules = ["everything_mcp"]`. The server targets MCP Python SDK 2.x (`mcp.server.mcpserver.MCPServer`; v1's `FastMCP` no longer exists).
 
 ### `ecolor` file-type routing
 
