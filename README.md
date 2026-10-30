@@ -119,4 +119,4 @@ journalctl -t ecolor -t etext
 
 ***
 
-This software is copyrighted © 2026 by Carsten Allefeld and released under the terms of the GNU General Public License, version 3 or later.
+Copyright © 2026 Carsten Allefeld, except for `R Markdown.sublime-syntax`, which is copyright © 2017 by Randy Lai and released under the MIT license (see the notice in the file). Portions of this software were generated with AI assistance (Claude Code, GitHub Copilot) and may not be subject to copyright. To the extent copyright subsists, this software is released under the terms of the GNU General Public License, version 3 or later.
